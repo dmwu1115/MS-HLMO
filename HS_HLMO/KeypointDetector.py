@@ -14,15 +14,19 @@ class KeypointsDetector():
         :param image: 单通道图像
         :return: 归一化后的keypoints坐标，[0, 1]
         """
+        height, width = image.shape
+
         harris_image = cv2.cornerHarris(image, 2, 3, k=0.04, borderType=cv2.BORDER_REFLECT)
         res_image = (self.__lnms(harris_image) == harris_image)
-        kpts = []
-        for y in range(res_image.shape[0]):
-            for x in range(res_image.shape[1]):
-                if res_image[y, x] and harris_image[y, x] > self.thresh:
-                    kpts.append((x, y))
+        mask = res_image & (harris_image > self.thresh)
 
-        kpts = normalize_coord(kpts, image.shape[1], image.shape[0])
+        f = np.argwhere(mask).astype(np.float32)
+        f_t = np.zeros_like(f)
+        f_t[:, 0] = f[:, 1] / width
+        f_t[:, 1] = f[:, 0] / height
+        f_t = f_t.tolist()
+
+        kpts = [tuple(x) for x in f_t]
         return kpts
 
     def __lnms(self, harris_image) -> np.ndarray:
@@ -31,6 +35,10 @@ class KeypointsDetector():
 
 # use det(M)/tr(M) as the cornerness
 class HarrisKeypointDetector():
+    def __init__(self, thresh=50, lnms_window_size=7):
+        self.lnms_window_szie = lnms_window_size
+        self.thresh = thresh
+
     # Compute harris values of an image.
     def computeHarrisValues(self, srcImage):
         srcImage = srcImage[:] * 255.0
@@ -46,24 +54,23 @@ class HarrisKeypointDetector():
         return harrisImage, orientationImage
 
     def computeLocalMaxima(self, harrisImage):
-        maxImg = ndimage.maximum_filter(harrisImage, size=(7, 7))
+        maxImg = ndimage.maximum_filter(harrisImage, size=self.lnms_window_szie)
         destImage = (maxImg == harrisImage)
         return destImage
 
     def detect(self, image):
         height, width = image.shape
-        features = []
 
         harrisImage, orientationImage = self.computeHarrisValues(image)
 
         harrisMaxImage = self.computeLocalMaxima(harrisImage)
+        mask = harrisMaxImage & (harrisImage > self.thresh)
 
-        for y in range(height):
-            for x in range(width):
-                if not harrisMaxImage[y, x] or harrisImage[y, x] < 50:
-                    continue
+        f = np.argwhere(mask).astype(np.float32)
+        f_t = np.zeros_like(f)
+        f_t[:, 0] = f[:, 1] / width
+        f_t[:, 1] = f[:, 0] / height
+        f_t = f_t.tolist()
 
-                f = (x / width, y / height)
-                features.append(f)
-
-        return features
+        kpts = [tuple(x) for x in f_t]
+        return kpts

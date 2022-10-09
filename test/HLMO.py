@@ -8,24 +8,25 @@ image1 = cv2.imread('../images/image1.png', cv2.IMREAD_GRAYSCALE)
 image2 = cv2.imread('../images/image2.png', cv2.IMREAD_GRAYSCALE)
 
 processer = PreProcesser()
-
 detector = KeypointsDetector(1e-9, 10)
 # detector = HarrisKeypointDetector()
-
 describer = KeypointDescriber(1.6, 12, 12, R0=10)
 matcher = cv2.BFMatcher()
 
+# HLMO
 image1 = processer.process(image1)
 image2 = processer.process(image2)
+t = time.time()
 kpts1 = detector.detect(image1)
 kpts2 = detector.detect(image2)
+print(f"DetectCost:{time.time() - t}")
 
 t = time.time()
 descriptors1 = describer.generate_descriptors(image1, kpts1)
-print(f"DescribeCost1:{time.time()-t}")
+print(f"DescribeCost1:{time.time() - t}")
 t = time.time()
 descriptors2 = describer.generate_descriptors(image2, kpts2)
-print(f"DescribeCost2:{time.time()-t}")
+print(f"DescribeCost2:{time.time() - t}")
 matches = matcher.match(descriptors1, descriptors2)
 matches = sorted(matches, key=lambda x: x.distance)
 
@@ -45,8 +46,11 @@ image2 *= 255.0
 image1 = cv2.cvtColor(image1, cv2.COLOR_GRAY2BGR).astype(np.uint8)
 image2 = cv2.cvtColor(image2, cv2.COLOR_GRAY2BGR).astype(np.uint8)
 
+
 def nothing(val):
     pass
+
+
 cv2.namedWindow('match', cv2.WINDOW_NORMAL)
 cv2.createTrackbar('ratio', 'match', 0, 100, nothing)
 
@@ -57,7 +61,8 @@ while True:
     for i in range(size):
         good_matches.append(matches[i])
 
-    matchimg = cv2.drawMatches(image1, keypoints1, image2, keypoints2, good_matches, None,matchColor=(0,255,0), flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
+    matchimg = cv2.drawMatches(image1, keypoints1, image2, keypoints2, good_matches, None, matchColor=(0, 255, 0),
+                               flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)
     cv2.imshow('match', matchimg)
     if cv2.waitKey(1) == ord('q'):
         break

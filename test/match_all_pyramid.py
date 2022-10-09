@@ -26,9 +26,11 @@ img_pyramid2 = pyramid.generate_pyramid(image2)
 
 desc1s, desc2s = [], []
 t = time.time()
-for octave1, octave2 in zip(img_pyramid1, img_pyramid2):
-    for layer1, layer2 in zip(octave1, octave2):
+for octave1 in img_pyramid1:
+    for layer1 in octave1:
         desc1s.append(describer.generate_descriptors(layer1, kpts1))
+for octave2 in img_pyramid2:
+    for layer2 in octave2:
         desc2s.append(describer.generate_descriptors(layer2, kpts2))
 print(f'DescribeCost: {time.time() - t}')
 print(f'AvgDescribeCost: {(time.time() - t) / (len(img_pyramid1) * len(img_pyramid1[0]))}')
@@ -36,4 +38,4 @@ print(f'AvgDescribeCost: {(time.time() - t) / (len(img_pyramid1) * len(img_pyram
 t = time.time()
 allmatches = matcher.match(desc1s, desc2s)
 print(f'MatchCost: {time.time() - t}')
-print()
+

@@ -20,5 +20,5 @@ class FeatureMatching():
         return allmatches
 
     # TODO: Remove outlier matches
-    def remove_outlier_matches(self, allmatches,octave1, layer1, octave2, layer2):
+    def remove_outlier_matches(self, allmatches, octave1, layer1, octave2, layer2):
         pass
