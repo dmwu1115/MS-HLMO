@@ -9,10 +9,10 @@ image2 = cv2.imread('../images/image2.png', cv2.IMREAD_GRAYSCALE)
 
 processer = PreProcesser()
 
-detector = KeypointsDetector(1e-7, 10)
+detector = KeypointsDetector(1e-9, 10)
 # detector = HarrisKeypointDetector()
 
-describer = KeypointDescriber(1.6, 12, 12, R0=5)
+describer = KeypointDescriber(1.6, 12, 12, R0=10)
 matcher = cv2.BFMatcher()
 
 image1 = processer.process(image1)

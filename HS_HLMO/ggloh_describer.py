@@ -21,7 +21,7 @@ class GGLOH():
         X, Y = np.meshgrid(x, x)
         self.angle_grid = np.arctan2(Y, X)
         self.distance_grid = np.sqrt(X**2 + Y ** 2)
-        self.R0_mask = self.distance_grid <= self.R0
+        self.R0_mask = (self.distance_grid <= self.R0).astype(np.uint8)
         self.R1_mask = (self.R0 < self.distance_grid) & (self.distance_grid <= self.R1)
         self.R2_mask = (self.R1 < self.distance_grid) & (self.distance_grid <= self.R2)
 
@@ -72,48 +72,36 @@ class GGLOH():
         return orientation
 
     def __compute_descriptor_optimized(self, orientation_image, kpt):
-        t = time.time()
         cx, cy = kpt
         descriptor = np.zeros((2 * self.NA + 1, self.NO), dtype=np.float32)
-        reference_angle = orientation_image[cy, cx]
+        reference_angle = orientation_image[cy, cx]     # 描述子的参考角度 (as 0°)
+
+        # Divide into NA areas with reference
         index_A_grid = ((self.angle_grid - reference_angle) / self.delta_A // 1).astype(np.int32)
+        temp_mask = (index_A_grid < 0).astype(np.int32) * self.NA
+        index_A_grid += temp_mask
 
-        for x in range(cx - self.R2, cx + self.R2 + 1):
-            for y in range(cy - self.R2, cy + self.R2 + 1):
-                d = self.distance_grid[y - cy + self.R2, x - cx + self.R2]
-                if self.R1 < d <= self.R2:
-                    # 计算coord所属的扇区
-                    index_A = int(index_A_grid[y - cy + self.R2, x - cx + self.R2])  # 向下取整
+        #
+        local_orientation_image = orientation_image[cy - self.R2: cy + self.R2 + 1, cx - self.R2: cx + self.R2 + 1]
+        local_relative_image = local_orientation_image - reference_angle
+        temp_mask = (local_relative_image < -math.pi / 2).astype(np.float32) * math.pi
+        local_relative_image += temp_mask
+        temp_mask = (local_relative_image >= math.pi / 2).astype(np.float32) * math.pi
+        local_relative_image -= temp_mask
 
-                    # 计算其orientation分配
-                    relative_orientation = orientation_image[y, x] - reference_angle
-                    relative_orientation = self.__regular_orientation(relative_orientation)
-                    down, up = self.__compute_orientation_assignment(relative_orientation)
+        # R0
+        descriptor[0] = cv2.calcHist([local_relative_image], [0], mask=self.R0_mask, histSize=[self.NO],
+                                     ranges=[-math.pi / 2, math.pi / 2]).reshape(-1)
+        # R1 R2
+        for index_A in range(self.NA):
+            mask_A = (index_A_grid == index_A)
+            mask = (self.R1_mask & mask_A).astype(np.uint8)
+            descriptor[1 + index_A] = cv2.calcHist([local_relative_image], [0], mask=mask,
+                                                             histSize=[self.NO], ranges=[-math.pi / 2, math.pi / 2]).reshape(-1)
+            mask = (self.R2_mask & mask_A).astype(np.uint8)
+            descriptor[1 + self.NA + index_A] = cv2.calcHist([local_relative_image], [0], mask=mask,
+                                                             histSize=[self.NO], ranges=[-math.pi / 2, math.pi / 2]).reshape(-1)
 
-                    descriptor[1 + self.NA + index_A, down[0]] += down[1]
-                    descriptor[1 + self.NA + index_A, up[0]] += up[1]
-
-                elif self.R0 < d <= self.R1:
-                    # 计算coord所属的扇区
-                    index_A = int(index_A_grid[y - cy + self.R2, x - cx + self.R2])  # 向下取整
-
-                    # 计算其orientation分配
-                    relative_orientation = orientation_image[y, x] - reference_angle
-                    relative_orientation = self.__regular_orientation(relative_orientation)
-                    down, up = self.__compute_orientation_assignment(relative_orientation)
-
-                    descriptor[1 + index_A, down[0]] += down[1]
-                    descriptor[1 + index_A, up[0]] += up[1]
-
-
-                elif d <= self.R0:
-                    relative_orientation = orientation_image[y, x] - reference_angle
-                    relative_orientation = self.__regular_orientation(relative_orientation)
-                    down, up = self.__compute_orientation_assignment(relative_orientation)
-
-                    descriptor[0][down[0]] += down[1]
-                    descriptor[0][up[0]] += up[1]
-        print("GetDescriptorCost:{}".format(time.time() - t))
         # Avoid angle jump
         D1 = np.zeros((2, int(self.NA / 2), self.NO))
         D2 = np.zeros_like(D1)
@@ -124,7 +112,7 @@ class GGLOH():
         D2[1:] = descriptor[int(self.NA / 2 * 3 + 1): self.NA * 2 + 1]
 
         D[:2] = D1 + D2
-        D[2:] = 0.5 * np.abs(D1 - D2)
+        D[2:] = 1. * np.abs(D1 - D2)
         D = D.reshape((-1, self.NO))
         descriptor[1:] = D
         descriptor = descriptor.reshape(-1)
@@ -219,9 +207,8 @@ class GGLOH():
         orientation_image = np.pad(orientation_image, pad_width=self.R2, mode='constant')
         keypoints = HS_HLMO.norm_coord.denormalize_coord(keypoints, width, height)
         for kpt in keypoints:
-            # t = time.time()
             kpt = int(kpt[0] + self.R2), int(kpt[1] + self.R2)
             descriptors.append(self.__compute_descriptor_optimized(orientation_image, kpt))
-            # print("Cost: {}".format(time.time() - t))
+
         descriptors = np.array(descriptors)
         return descriptors
