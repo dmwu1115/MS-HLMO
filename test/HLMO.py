@@ -5,7 +5,7 @@ from HS_HLMO.KeypointDescriber import *
 from HS_HLMO.preprocess import *
 
 image1 = cv2.imread('../images/image1.png', cv2.IMREAD_GRAYSCALE)
-image2 = cv2.imread('../images/image2.png', cv2.IMREAD_GRAYSCALE)
+image2 = cv2.imread('../images/image2_0.5scale.png', cv2.IMREAD_GRAYSCALE)
 
 processer = PreProcesser()
 detector = KeypointsDetector(1e-9, 10)
@@ -27,8 +27,11 @@ print(f"DescribeCost1:{time.time() - t}")
 t = time.time()
 descriptors2 = describer.generate_descriptors(image2, kpts2)
 print(f"DescribeCost2:{time.time() - t}")
-matches = matcher.match(descriptors1, descriptors2)
-matches = sorted(matches, key=lambda x: x.distance)
+matches = matcher.knnMatch(descriptors1, descriptors2, 2)
+good_matches = []
+for m in matches:
+    if m[0].distance < 0.6 * m[1].distance:
+        good_matches.append(m[0])
 
 # Draw Matches
 kpts1 = HS_HLMO.norm_coord.denormalize_coord(kpts1, image1.shape[1], image1.shape[0])
@@ -55,11 +58,11 @@ cv2.namedWindow('match', cv2.WINDOW_NORMAL)
 cv2.createTrackbar('ratio', 'match', 0, 100, nothing)
 
 while True:
-    ratio = cv2.getTrackbarPos('ratio', 'match') / 100.
-    size = int(ratio * len(matches))
-    good_matches = []
-    for i in range(size):
-        good_matches.append(matches[i])
+    # ratio = cv2.getTrackbarPos('ratio', 'match') / 100.
+    # size = int(ratio * len(matches))
+    # good_matches = []
+    # for i in range(size):
+    #     good_matches.append(matches[i])
 
     matchimg = cv2.drawMatches(image1, keypoints1, image2, keypoints2, good_matches, None, matchColor=(0, 255, 0),
                                flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS)

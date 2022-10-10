@@ -3,6 +3,7 @@ import cv2
 import numpy as np
 from scipy import ndimage
 
+# CV Harris
 class KeypointsDetector():
     def __init__(self, thresh=1e-9, lnms_window_size=7):
         self.lnms_window_szie = lnms_window_size
